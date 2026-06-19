@@ -107,6 +107,7 @@ export const initialUserData: UserData = {
       chapterTitle: '第一章 初遇',
       price: 0,
       timestamp: Date.now() - 86400000 * 2,
+      approvedBy: 'user',
     },
     {
       id: 'record-2',
@@ -116,6 +117,7 @@ export const initialUserData: UserData = {
       chapterTitle: '第二章 相识',
       price: 0,
       timestamp: Date.now() - 86400000,
+      approvedBy: 'user',
     },
     {
       id: 'record-3',
@@ -125,6 +127,7 @@ export const initialUserData: UserData = {
       chapterTitle: '第三章 相知',
       price: 0,
       timestamp: Date.now() - 3600000,
+      approvedBy: 'user',
     },
   ],
   settings: {

@@ -6,7 +6,7 @@ import { initialUserData, bookChapters } from '@/data/mockData';
 interface UserStore extends UserData {
   setBalance: (balance: number) => void;
   addBalance: (amount: number) => void;
-  purchaseChapter: (bookId: string, chapterId: number, price: number, bookTitle: string, chapterTitle: string) => boolean;
+  purchaseChapter: (bookId: string, chapterId: number, price: number, bookTitle: string, chapterTitle: string, approvedBy?: 'user' | 'family') => boolean;
   updateBookProgress: (bookId: string, chapterId: number) => void;
   updateSettings: (settings: Partial<UserSettings>) => void;
   setFamilyPassword: (password: string) => void;
@@ -29,7 +29,7 @@ export const useUserStore = create<UserStore>()(
 
       addBalance: (amount) => set((state) => ({ balance: state.balance + amount })),
 
-      purchaseChapter: (bookId, chapterId, price, bookTitle, chapterTitle) => {
+      purchaseChapter: (bookId, chapterId, price, bookTitle, chapterTitle, approvedBy = 'user') => {
         const state = get();
         state.resetDailySpentIfNeeded();
 
@@ -51,6 +51,7 @@ export const useUserStore = create<UserStore>()(
           chapterTitle,
           price,
           timestamp: Date.now(),
+          approvedBy,
         };
 
         const updatedBooks = currentState.books.map((book) => {
@@ -152,7 +153,8 @@ export const useUserStore = create<UserStore>()(
           request.chapterId,
           request.price,
           request.bookTitle,
-          request.chapterTitle
+          request.chapterTitle,
+          'family'
         );
 
         if (success) {

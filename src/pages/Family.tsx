@@ -19,6 +19,7 @@ import {
   History,
   ChevronDown,
   ChevronUp,
+  User,
 } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import PageHeader from '@/components/PageHeader';
@@ -503,12 +504,33 @@ export default function Family() {
                     key={record.id}
                     className="p-5 bg-amber-50 rounded-xl flex items-center justify-between"
                   >
-                    <div>
+                    <div className="flex-1">
                       <p className="text-xl font-bold text-amber-900">{record.bookTitle}</p>
                       <p className="text-lg text-amber-700">{record.chapterTitle}</p>
-                      <p className="text-base text-amber-500">
-                        {new Date(record.timestamp).toLocaleString('zh-CN')}
-                      </p>
+                      <div className="flex items-center gap-4 mt-2">
+                        <p className="text-base text-amber-500">
+                          {new Date(record.timestamp).toLocaleString('zh-CN')}
+                        </p>
+                        {record.price > 0 && (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-base font-bold ${
+                            record.approvedBy === 'family'
+                              ? 'bg-blue-100 text-blue-600'
+                              : 'bg-amber-100 text-amber-600'
+                          }`}>
+                            {record.approvedBy === 'family' ? (
+                              <>
+                                <Shield size={18} />
+                                家属同意
+                              </>
+                            ) : (
+                              <>
+                                <User size={18} />
+                                自行解锁
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-right">
                       {record.price === 0 ? (

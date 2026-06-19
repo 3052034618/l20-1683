@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Receipt, Coins, Calendar, Filter, BarChart3, BookOpen } from 'lucide-react';
+import { Receipt, Coins, Calendar, Filter, BarChart3, BookOpen, User, Shield } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
@@ -254,12 +254,33 @@ export default function Records() {
                             <p className="text-xl text-amber-700">
                               {record.chapterTitle}
                             </p>
-                            <p className="text-lg text-amber-500 mt-2">
-                              {new Date(record.timestamp).toLocaleTimeString('zh-CN', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
+                            <div className="flex items-center gap-6 mt-2">
+                              <p className="text-lg text-amber-500">
+                                {new Date(record.timestamp).toLocaleTimeString('zh-CN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
+                              {record.price > 0 && (
+                                <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-lg font-bold ${
+                                  record.approvedBy === 'family'
+                                    ? 'bg-blue-100 text-blue-600'
+                                    : 'bg-amber-100 text-amber-600'
+                                }`}>
+                                  {record.approvedBy === 'family' ? (
+                                    <>
+                                      <Shield size={20} />
+                                      家属同意
+                                    </>
+                                  ) : (
+                                    <>
+                                      <User size={20} />
+                                      自行解锁
+                                    </>
+                                  )}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="text-right">
                             {record.price === 0 ? (

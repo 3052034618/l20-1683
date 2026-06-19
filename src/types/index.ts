@@ -25,6 +25,7 @@ export interface PurchaseRecord {
   chapterTitle: string;
   price: number;
   timestamp: number;
+  approvedBy: 'user' | 'family';
 }
 
 export interface FamilyApprovalRequest {

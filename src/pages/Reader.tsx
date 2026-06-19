@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, List, Type, Home, Clock, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, List, Type, Home, Clock, CheckCircle, XCircle, Send, Bell } from 'lucide-react';
 import { useUserStore, getChapter, isChapterPurchased } from '@/store/useUserStore';
 import { bookChapters } from '@/data/mockData';
 import UnlockModal from '@/components/UnlockModal';
@@ -23,7 +23,11 @@ export default function Reader() {
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showChapters, setShowChapters] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [pendingChapter, setPendingChapter] = useState<number | null>(null);
+  
+  const pendingRequests = familyApprovalRequests.filter((r) => r.status === 'pending');
+  const recentRequests = familyApprovalRequests.slice(0, 5);
 
   const book = books.find((b) => b.id === bookId);
   const currentChapterId = chapterId ? parseInt(chapterId) : 1;
@@ -35,11 +39,32 @@ export default function Reader() {
   const canRead = isPurchased || isFree;
 
   const pendingTargetChapter = pendingChapter ? getChapter(bookId || '', pendingChapter) : null;
+  
+  const currentPendingRequest = familyApprovalRequests.find(
+    (r) => r.bookId === bookId && r.chapterId === currentChapterId && r.status === 'pending'
+  );
+  
+  const currentRejectedRequest = familyApprovalRequests.find(
+    (r) => r.bookId === bookId && r.chapterId === currentChapterId && r.status === 'rejected'
+  );
+  
   const pendingRequest = pendingChapter
     ? familyApprovalRequests.find(
         (r) => r.bookId === bookId && r.chapterId === pendingChapter && r.status === 'pending'
       )
     : null;
+  
+  const rejectedRequest = pendingChapter
+    ? familyApprovalRequests.find(
+        (r) => r.bookId === bookId && r.chapterId === pendingChapter && r.status === 'rejected'
+      )
+    : null;
+  
+  const isInPendingState = !canRead && (currentPendingRequest || pendingRequest);
+  const isInRejectedState = !canRead && (currentRejectedRequest || rejectedRequest);
+  
+  const displayPendingRequest = currentPendingRequest || pendingRequest;
+  const displayRejectedRequest = currentRejectedRequest || rejectedRequest;
 
   useEffect(() => {
     if (bookId && currentChapterId && canRead) {
@@ -119,13 +144,27 @@ export default function Reader() {
             <p className="text-lg text-amber-700">{chapter.title}</p>
           </div>
           
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="p-3 rounded-xl bg-amber-100 text-amber-900 hover:bg-amber-200 transition-colors"
-            aria-label="菜单"
-          >
-            <List size={32} strokeWidth={2} />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowNotifications(true)}
+              className="relative p-3 rounded-xl bg-amber-100 text-amber-900 hover:bg-amber-200 transition-colors"
+              aria-label="通知"
+            >
+              <Bell size={32} strokeWidth={2} />
+              {pendingRequests.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-red-500 text-white text-lg font-bold flex items-center justify-center">
+                  {pendingRequests.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-3 rounded-xl bg-amber-100 text-amber-900 hover:bg-amber-200 transition-colors"
+              aria-label="菜单"
+            >
+              <List size={32} strokeWidth={2} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -194,21 +233,27 @@ export default function Reader() {
                   ))}
                 </div>
               </article>
-            ) : pendingRequest ? (
+            ) : isInPendingState && displayPendingRequest ? (
               <div className="text-center py-20">
                 <div className="w-32 h-32 mx-auto mb-8 rounded-full bg-amber-100 flex items-center justify-center">
                   <Clock size={64} className="text-amber-500" />
                 </div>
                 <h2 className="text-3xl font-bold text-amber-900 mb-4">等待家属确认</h2>
-                <p className="text-2xl text-amber-700 mb-2">{chapter.title}</p>
+                <p className="text-2xl text-amber-700 mb-2">{displayTitle}</p>
                 <p className="text-xl text-amber-600 mb-10">
                   已向家属发起申请，请耐心等待...
                 </p>
                 <div className="bg-amber-50 rounded-2xl p-6 max-w-md mx-auto mb-10">
-                  <p className="text-lg text-amber-700 mb-2">申请时间</p>
-                  <p className="text-xl font-bold text-amber-900">
-                    {new Date(pendingRequest.requestTime).toLocaleString('zh-CN')}
-                  </p>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-lg text-amber-700">价格</span>
+                    <span className="text-2xl font-bold text-orange-500">{displayPrice} 书币</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg text-amber-700">申请时间</span>
+                    <span className="text-xl font-bold text-amber-900">
+                      {new Date(displayPendingRequest.requestTime).toLocaleString('zh-CN')}
+                    </span>
+                  </div>
                 </div>
                 <div className="space-y-4 max-w-md mx-auto">
                   <BigButton
@@ -217,7 +262,23 @@ export default function Reader() {
                     fullWidth
                     onClick={() => {
                       useUserStore.getState().resetDailySpentIfNeeded();
-                      setShowUnlockModal(true);
+                      const state = useUserStore.getState();
+                      const chId = pendingChapter || currentChapterId;
+                      const purchased = state.books.find((b) => b.id === bookId)?.purchasedChapters.includes(chId);
+                      if (purchased) {
+                        navigate(`/read/${bookId}/chapter/${chId}`);
+                        setPendingChapter(null);
+                      } else {
+                        const req = state.familyApprovalRequests.find(
+                          (r) => r.bookId === bookId && r.chapterId === chId && r.status === 'approved'
+                        );
+                        if (req) {
+                          navigate(`/read/${bookId}/chapter/${chId}`);
+                          setPendingChapter(null);
+                        } else {
+                          setShowUnlockModal(true);
+                        }
+                      }
                     }}
                     icon={<CheckCircle size={28} />}
                   >
@@ -230,6 +291,54 @@ export default function Reader() {
                     onClick={() => setShowUnlockModal(true)}
                   >
                     查看申请详情
+                  </BigButton>
+                </div>
+              </div>
+            ) : isInRejectedState && displayRejectedRequest ? (
+              <div className="text-center py-20">
+                <div className="w-32 h-32 mx-auto mb-8 rounded-full bg-red-100 flex items-center justify-center">
+                  <XCircle size={64} className="text-red-500" />
+                </div>
+                <h2 className="text-3xl font-bold text-red-600 mb-4">家属已拒绝</h2>
+                <p className="text-2xl text-amber-700 mb-2">{displayTitle}</p>
+                <p className="text-xl text-amber-600 mb-10">
+                  很抱歉，家属没有同意这次解锁申请
+                </p>
+                <div className="bg-amber-50 rounded-2xl p-6 max-w-md mx-auto mb-10">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-lg text-amber-700">价格</span>
+                    <span className="text-2xl font-bold text-orange-500">{displayPrice} 书币</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg text-amber-700">拒绝时间</span>
+                    <span className="text-xl font-bold text-amber-900">
+                      {new Date(displayRejectedRequest.handledTime || displayRejectedRequest.requestTime).toLocaleString('zh-CN')}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-4 max-w-md mx-auto">
+                  <BigButton
+                    variant="primary"
+                    size="large"
+                    fullWidth
+                    onClick={() => {
+                      setPendingChapter(pendingChapter || currentChapterId);
+                      setShowUnlockModal(true);
+                    }}
+                    icon={<Send size={28} />}
+                  >
+                    重新申请
+                  </BigButton>
+                  <BigButton
+                    variant="secondary"
+                    size="large"
+                    fullWidth
+                    onClick={() => {
+                      setPendingChapter(null);
+                      setShowChapters(true);
+                    }}
+                  >
+                    返回目录
                   </BigButton>
                 </div>
               </div>
@@ -335,6 +444,74 @@ export default function Reader() {
               </button>
             );
           })}
+        </div>
+      </BigModal>
+
+      <BigModal
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        title="申请通知"
+      >
+        <div className="space-y-4">
+          {recentRequests.length === 0 ? (
+            <div className="text-center py-12">
+              <Bell size={64} className="mx-auto text-amber-300 mb-4" />
+              <p className="text-2xl text-amber-600">暂无申请记录</p>
+            </div>
+          ) : (
+            recentRequests.map((request) => (
+              <button
+                key={request.id}
+                onClick={() => {
+                  setShowNotifications(false);
+                  navigate(`/read/${request.bookId}/chapter/${request.chapterId}`);
+                }}
+                className={`w-full p-5 rounded-2xl text-left transition-colors border-2 ${
+                  request.bookId === bookId
+                    ? 'bg-orange-50 border-orange-200'
+                    : 'bg-amber-50 border-transparent hover:bg-amber-100 hover:border-amber-200'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-2xl font-bold text-amber-900 mb-2">
+                      {request.bookTitle}
+                    </p>
+                    <p className="text-xl text-amber-700 mb-3">
+                      {request.chapterTitle}
+                    </p>
+                    <div className="flex items-center gap-6 text-lg text-amber-600">
+                      <span className="flex items-center gap-2">
+                        <Clock size={20} />
+                        {new Date(request.requestTime).toLocaleString('zh-CN')}
+                      </span>
+                      <span className="text-2xl font-bold text-orange-500">
+                        {request.price} 书币
+                      </span>
+                    </div>
+                  </div>
+                  <div className="ml-6">
+                    {request.status === 'pending' ? (
+                      <span className="px-4 py-2 bg-amber-100 text-amber-700 rounded-xl text-xl font-bold flex items-center gap-2">
+                        <Clock size={24} />
+                        待确认
+                      </span>
+                    ) : request.status === 'approved' ? (
+                      <span className="px-4 py-2 bg-green-100 text-green-600 rounded-xl text-xl font-bold flex items-center gap-2">
+                        <CheckCircle size={24} />
+                        已同意
+                      </span>
+                    ) : (
+                      <span className="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-xl font-bold flex items-center gap-2">
+                        <XCircle size={24} />
+                        已拒绝
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
         </div>
       </BigModal>
     </div>
