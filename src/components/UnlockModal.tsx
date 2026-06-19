@@ -15,6 +15,7 @@ interface UnlockModalProps {
   chapterTitle: string;
   price: number;
   onSuccess: () => void;
+  onRequested?: () => void;
   hasPendingRequest?: boolean;
   requestStatus?: 'pending' | 'approved' | 'rejected';
 }
@@ -28,6 +29,7 @@ export default function UnlockModal({
   chapterTitle,
   price,
   onSuccess,
+  onRequested,
   hasPendingRequest = false,
   requestStatus,
 }: UnlockModalProps) {
@@ -51,15 +53,12 @@ export default function UnlockModal({
     if (isOpen) {
       if (pendingRequest) {
         setStep('requested');
-      } else if (rejectedRequest) {
-        setStep('failed');
-        setErrorMsg('家属已拒绝此次申请');
       } else {
         setStep('confirm');
         setErrorMsg('');
       }
     }
-  }, [isOpen, pendingRequest, rejectedRequest]);
+  }, [isOpen, pendingRequest]);
 
   const canAfford = balance >= price;
   const withinDailyLimit = dailySpent + price <= settings.dailyLimit;
@@ -122,6 +121,9 @@ export default function UnlockModal({
     
     setTimeout(() => {
       setStep('requested');
+      if (onRequested) {
+        onRequested();
+      }
     }, 800);
   };
 
@@ -169,6 +171,18 @@ export default function UnlockModal({
             </div>
           )}
 
+          {rejectedRequest && (
+            <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-6 mb-8">
+              <div className="flex items-center justify-center gap-3 text-red-600 mb-4">
+                <XCircle size={32} />
+                <span className="text-2xl font-bold">上次申请被拒绝</span>
+              </div>
+              <p className="text-xl text-red-500">
+                拒绝时间：{new Date(rejectedRequest.handledTime || rejectedRequest.requestTime).toLocaleString('zh-CN')}
+              </p>
+            </div>
+          )}
+
           {needFamilyConfirm && canAfford && withinDailyLimit && (
             <div className="bg-amber-100 border-2 border-amber-300 rounded-2xl p-6 mb-8">
               <div className="flex items-center justify-center gap-3 text-amber-700 mb-4">
@@ -176,7 +190,9 @@ export default function UnlockModal({
                 <span className="text-2xl font-bold">需要家属确认</span>
               </div>
               <p className="text-xl text-amber-600">
-                超过 {settings.askFamilyAbove} 书币的消费需家属确认
+                {settings.askFamilyAbove === 0
+                  ? '所有付费章节都需要家属确认'
+                  : `超过 ${settings.askFamilyAbove} 书币的消费需家属确认`}
               </p>
             </div>
           )}

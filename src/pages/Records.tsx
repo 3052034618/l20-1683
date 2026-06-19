@@ -6,10 +6,12 @@ import Card from '@/components/Card';
 import ProgressBar from '@/components/ProgressBar';
 
 type FilterType = 'all' | 'paid';
+type ApprovedByFilter = 'all' | 'user' | 'family';
 
 export default function Records() {
   const { records, balance, dailySpent, settings } = useUserStore();
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [approvedByFilter, setApprovedByFilter] = useState<ApprovedByFilter>('all');
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
 
   const filteredRecords = useMemo(() => {
@@ -19,12 +21,16 @@ export default function Records() {
       result = result.filter((r) => r.price > 0);
     }
     
+    if (approvedByFilter !== 'all') {
+      result = result.filter((r) => r.approvedBy === approvedByFilter);
+    }
+    
     if (selectedBookId) {
       result = result.filter((r) => r.bookId === selectedBookId);
     }
     
     return result;
-  }, [records, filterType, selectedBookId]);
+  }, [records, filterType, approvedByFilter, selectedBookId]);
 
   const groupedRecords = useMemo(() => {
     const groups: Record<string, typeof filteredRecords> = {};
@@ -193,32 +199,70 @@ export default function Records() {
             </Card>
           )}
 
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-3xl font-bold text-amber-900 flex items-center gap-3">
-              <Receipt size={36} />
-              购买记录
-            </h2>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setFilterType('all')}
-                className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors ${
-                  filterType === 'all'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                }`}
-              >
-                全部
-              </button>
-              <button
-                onClick={() => setFilterType('paid')}
-                className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors ${
-                  filterType === 'paid'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                }`}
-              >
-                仅付费
-              </button>
+          <div className="flex flex-col gap-4 mb-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-amber-900 flex items-center gap-3">
+                <Receipt size={36} />
+                购买记录
+              </h2>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setFilterType('all')}
+                  className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors ${
+                    filterType === 'all'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  }`}
+                >
+                  全部
+                </button>
+                <button
+                  onClick={() => setFilterType('paid')}
+                  className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors ${
+                    filterType === 'paid'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  }`}
+                >
+                  仅付费
+                </button>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setApprovedByFilter('all')}
+                  className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors ${
+                    approvedByFilter === 'all'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  }`}
+                >
+                  全部确认人
+                </button>
+                <button
+                  onClick={() => setApprovedByFilter('user')}
+                  className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors flex items-center gap-2 ${
+                    approvedByFilter === 'user'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  }`}
+                >
+                  <User size={24} />
+                  自行解锁
+                </button>
+                <button
+                  onClick={() => setApprovedByFilter('family')}
+                  className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors flex items-center gap-2 ${
+                    approvedByFilter === 'family'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  }`}
+                >
+                  <Shield size={24} />
+                  家属同意
+                </button>
+              </div>
             </div>
           </div>
 

@@ -55,6 +55,7 @@ export default function Family() {
   const [historyTab, setHistoryTab] = useState<HistoryTab>('pending');
   const [showHistoryDetail, setShowHistoryDetail] = useState(false);
   const [detailRequestId, setDetailRequestId] = useState<string | null>(null);
+  const [expandedBookId, setExpandedBookId] = useState<string | null>(null);
 
   useEffect(() => {
     resetDailySpentIfNeeded();
@@ -127,15 +128,41 @@ export default function Family() {
     if (record.price === 0) return acc;
     if (!acc[record.bookId]) {
       acc[record.bookId] = {
+        bookId: record.bookId,
         bookTitle: record.bookTitle,
         totalSpent: 0,
         chapterCount: 0,
+        userSpent: 0,
+        userCount: 0,
+        familySpent: 0,
+        familyCount: 0,
+        chapters: [] as typeof records,
       };
     }
     acc[record.bookId].totalSpent += record.price;
     acc[record.bookId].chapterCount += 1;
+    acc[record.bookId].chapters.push(record);
+    
+    if (record.approvedBy === 'family') {
+      acc[record.bookId].familySpent += record.price;
+      acc[record.bookId].familyCount += 1;
+    } else {
+      acc[record.bookId].userSpent += record.price;
+      acc[record.bookId].userCount += 1;
+    }
+    
     return acc;
-  }, {} as Record<string, { bookTitle: string; totalSpent: number; chapterCount: number }>);
+  }, {} as Record<string, { 
+    bookId: string; 
+    bookTitle: string; 
+    totalSpent: number; 
+    chapterCount: number;
+    userSpent: number;
+    userCount: number;
+    familySpent: number;
+    familyCount: number;
+    chapters: typeof records;
+  }>);
 
   const bookStatsList = Object.values(bookStats).sort((a, b) => b.totalSpent - a.totalSpent);
 
@@ -460,29 +487,101 @@ export default function Family() {
               <div className="space-y-4">
                 {bookStatsList.map((stat, index) => (
                   <div
-                    key={stat.bookTitle}
-                    className="p-5 bg-amber-50 rounded-xl"
+                    key={stat.bookId}
+                    className="bg-amber-50 rounded-2xl overflow-hidden"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-4">
-                        <span className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xl font-bold">
-                          {index + 1}
-                        </span>
-                        <div>
-                          <p className="text-2xl font-bold text-amber-900">{stat.bookTitle}</p>
-                          <p className="text-lg text-amber-700">已购 {stat.chapterCount} 章</p>
+                    <button
+                      onClick={() => setExpandedBookId(expandedBookId === stat.bookId ? null : stat.bookId)}
+                      className="w-full p-5 text-left"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-4">
+                          <span className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xl font-bold">
+                            {index + 1}
+                          </span>
+                          <div>
+                            <p className="text-2xl font-bold text-amber-900">{stat.bookTitle}</p>
+                            <div className="flex gap-6 mt-1">
+                              <span className="text-lg text-amber-700 flex items-center gap-2">
+                                <User size={20} />
+                                自行 {stat.userCount} 章
+                              </span>
+                              <span className="text-lg text-amber-700 flex items-center gap-2">
+                                <Shield size={20} />
+                                家属 {stat.familyCount} 章
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-3xl font-bold text-orange-500">
+                              {stat.totalSpent} 书币
+                            </p>
+                          </div>
+                          {expandedBookId === stat.bookId ? (
+                            <ChevronUp size={32} className="text-amber-500" />
+                          ) : (
+                            <ChevronDown size={32} className="text-amber-500" />
+                          )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-3xl font-bold text-orange-500">
-                          {stat.totalSpent} 书币
-                        </p>
+                      <ProgressBar
+                        value={stat.totalSpent}
+                        max={records.reduce((s, r) => s + r.price, 0)}
+                      />
+                    </button>
+                    
+                    {expandedBookId === stat.bookId && (
+                      <div className="px-5 pb-5 border-t-2 border-amber-200">
+                        <h3 className="text-xl font-bold text-amber-800 mt-5 mb-4">
+                          章节购买详情
+                        </h3>
+                        <div className="space-y-3">
+                          {stat.chapters
+                            .sort((a, b) => a.chapterId - b.chapterId)
+                            .map((chapter) => (
+                            <div
+                              key={chapter.id}
+                              className="p-4 bg-white rounded-xl flex items-center justify-between"
+                            >
+                              <div className="flex-1">
+                                <p className="text-xl font-bold text-amber-900">
+                                  {chapter.chapterTitle}
+                                </p>
+                                <p className="text-base text-amber-500 mt-1">
+                                  {new Date(chapter.timestamp).toLocaleString('zh-CN')}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-lg font-bold ${
+                                    chapter.approvedBy === 'family'
+                                      ? 'bg-blue-100 text-blue-600'
+                                      : 'bg-amber-100 text-amber-600'
+                                  }`}
+                                >
+                                  {chapter.approvedBy === 'family' ? (
+                                    <>
+                                      <Shield size={20} />
+                                      家属同意
+                                    </>
+                                  ) : (
+                                    <>
+                                      <User size={20} />
+                                      自行解锁
+                                    </>
+                                  )}
+                                </span>
+                                <span className="text-2xl font-bold text-orange-500">
+                                  -{chapter.price}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                    <ProgressBar
-                      value={stat.totalSpent}
-                      max={records.reduce((s, r) => s + r.price, 0)}
-                    />
+                    )}
                   </div>
                 ))}
               </div>

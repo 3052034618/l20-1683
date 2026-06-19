@@ -5,13 +5,32 @@ import BigButton from '@/components/BigButton';
 import BigModal from '@/components/BigModal';
 import { useState } from 'react';
 
+type NotifTab = 'all' | 'pending' | 'approved' | 'rejected';
+
 export default function Home() {
   const navigate = useNavigate();
   const { balance, lastReadBookId, books, familyApprovalRequests } = useUserStore();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifTab, setNotifTab] = useState<NotifTab>('all');
 
   const pendingRequests = familyApprovalRequests.filter((r) => r.status === 'pending');
-  const recentRequests = familyApprovalRequests.slice(0, 5);
+  const approvedRequests = familyApprovalRequests.filter((r) => r.status === 'approved');
+  const rejectedRequests = familyApprovalRequests.filter((r) => r.status === 'rejected');
+  
+  const getDisplayRequests = () => {
+    switch (notifTab) {
+      case 'pending':
+        return pendingRequests.slice(0, 10);
+      case 'approved':
+        return approvedRequests.slice(0, 10);
+      case 'rejected':
+        return rejectedRequests.slice(0, 10);
+      default:
+        return familyApprovalRequests.slice(0, 10);
+    }
+  };
+  
+  const displayRequests = getDisplayRequests();
 
   const handleContinue = () => {
     if (lastReadBookId) {
@@ -105,14 +124,75 @@ export default function Home() {
         onClose={() => setShowNotifications(false)}
         title="申请通知"
       >
+        <div className="flex gap-2 mb-6 flex-wrap">
+          <button
+            onClick={() => setNotifTab('all')}
+            className={`px-5 py-2.5 rounded-xl text-xl font-bold transition-colors ${
+              notifTab === 'all'
+                ? 'bg-orange-500 text-white'
+                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+            }`}
+          >
+            全部
+          </button>
+          <button
+            onClick={() => setNotifTab('pending')}
+            className={`px-5 py-2.5 rounded-xl text-xl font-bold transition-colors flex items-center gap-2 ${
+              notifTab === 'pending'
+                ? 'bg-amber-500 text-white'
+                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+            }`}
+          >
+            <Clock size={22} />
+            待确认
+            {pendingRequests.length > 0 && (
+              <span className="ml-1 px-2.5 py-0.5 bg-white/20 rounded-full text-lg">
+                {pendingRequests.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setNotifTab('approved')}
+            className={`px-5 py-2.5 rounded-xl text-xl font-bold transition-colors flex items-center gap-2 ${
+              notifTab === 'approved'
+                ? 'bg-green-500 text-white'
+                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+            }`}
+          >
+            <CheckCircle size={22} />
+            已同意
+            {approvedRequests.length > 0 && (
+              <span className="ml-1 px-2.5 py-0.5 bg-white/20 rounded-full text-lg">
+                {approvedRequests.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setNotifTab('rejected')}
+            className={`px-5 py-2.5 rounded-xl text-xl font-bold transition-colors flex items-center gap-2 ${
+              notifTab === 'rejected'
+                ? 'bg-red-500 text-white'
+                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+            }`}
+          >
+            <XCircle size={22} />
+            已拒绝
+            {rejectedRequests.length > 0 && (
+              <span className="ml-1 px-2.5 py-0.5 bg-white/20 rounded-full text-lg">
+                {rejectedRequests.length}
+              </span>
+            )}
+          </button>
+        </div>
+
         <div className="space-y-4">
-          {recentRequests.length === 0 ? (
+          {displayRequests.length === 0 ? (
             <div className="text-center py-12">
               <Bell size={64} className="mx-auto text-amber-300 mb-4" />
-              <p className="text-2xl text-amber-600">暂无申请记录</p>
+              <p className="text-2xl text-amber-600">暂无记录</p>
             </div>
           ) : (
-            recentRequests.map((request) => (
+            displayRequests.map((request) => (
               <button
                 key={request.id}
                 onClick={() => {
@@ -132,7 +212,11 @@ export default function Home() {
                     <div className="flex items-center gap-6 text-lg text-amber-600">
                       <span className="flex items-center gap-2">
                         <Clock size={20} />
-                        {new Date(request.requestTime).toLocaleString('zh-CN')}
+                        {new Date(
+                          request.status === 'pending'
+                            ? request.requestTime
+                            : request.handledTime || request.requestTime
+                        ).toLocaleString('zh-CN')}
                       </span>
                       <span className="text-2xl font-bold text-orange-500">
                         {request.price} 书币
