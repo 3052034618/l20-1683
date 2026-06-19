@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, List, Type, Home } from 'lucide-react';
+import { ChevronLeft, ChevronRight, List, Type, Home, Clock, CheckCircle } from 'lucide-react';
 import { useUserStore, getChapter, isChapterPurchased } from '@/store/useUserStore';
 import { bookChapters } from '@/data/mockData';
 import UnlockModal from '@/components/UnlockModal';
@@ -18,7 +18,7 @@ export default function Reader() {
   const { bookId, chapterId } = useParams<{ bookId: string; chapterId: string }>();
   const navigate = useNavigate();
   
-  const { books, settings, updateBookProgress, setLastReadBook, balance } = useUserStore();
+  const { books, settings, updateBookProgress, setLastReadBook, balance, familyApprovalRequests } = useUserStore();
   
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -33,6 +33,13 @@ export default function Reader() {
   const isPurchased = book ? book.purchasedChapters.includes(currentChapterId) : false;
   const isFree = chapter?.isFree || false;
   const canRead = isPurchased || isFree;
+
+  const pendingTargetChapter = pendingChapter ? getChapter(bookId || '', pendingChapter) : null;
+  const pendingRequest = pendingChapter
+    ? familyApprovalRequests.find(
+        (r) => r.bookId === bookId && r.chapterId === pendingChapter && r.status === 'pending'
+      )
+    : null;
 
   useEffect(() => {
     if (bookId && currentChapterId && canRead) {
@@ -68,6 +75,7 @@ export default function Reader() {
     if (pendingChapter) {
       navigate(`/read/${bookId}/chapter/${pendingChapter}`);
       setPendingChapter(null);
+      setShowUnlockModal(false);
     }
   };
 
@@ -82,6 +90,10 @@ export default function Reader() {
       </div>
     );
   }
+
+  const displayChapter = pendingTargetChapter || chapter;
+  const displayPrice = pendingTargetChapter?.price ?? chapter.price;
+  const displayTitle = pendingTargetChapter?.title ?? chapter.title;
 
   return (
     <div className="min-h-screen bg-amber-50 flex flex-col">
@@ -175,6 +187,31 @@ export default function Reader() {
                   ))}
                 </div>
               </article>
+            ) : pendingRequest ? (
+              <div className="text-center py-20">
+                <div className="w-32 h-32 mx-auto mb-8 rounded-full bg-amber-100 flex items-center justify-center">
+                  <Clock size={64} className="text-amber-500" />
+                </div>
+                <h2 className="text-3xl font-bold text-amber-900 mb-4">等待家属确认</h2>
+                <p className="text-2xl text-amber-700 mb-2">{chapter.title}</p>
+                <p className="text-xl text-amber-600 mb-10">
+                  已向家属发起申请，请耐心等待...
+                </p>
+                <div className="bg-amber-50 rounded-2xl p-6 max-w-md mx-auto mb-10">
+                  <p className="text-lg text-amber-700 mb-2">申请时间</p>
+                  <p className="text-xl font-bold text-amber-900">
+                    {new Date(pendingRequest.requestTime).toLocaleString('zh-CN')}
+                  </p>
+                </div>
+                <BigButton
+                  variant="secondary"
+                  size="large"
+                  onClick={() => setShowUnlockModal(true)}
+                  className="max-w-md mx-auto"
+                >
+                  查看申请详情
+                </BigButton>
+              </div>
             ) : (
               <div className="text-center py-20">
                 <div className="w-32 h-32 mx-auto mb-8 rounded-full bg-amber-200 flex items-center justify-center">
@@ -222,9 +259,11 @@ export default function Reader() {
         bookId={bookId || ''}
         bookTitle={book.title}
         chapterId={pendingChapter || currentChapterId}
-        chapterTitle={chapter.title}
-        price={chapter.price}
+        chapterTitle={displayTitle}
+        price={displayPrice}
         onSuccess={handleUnlockSuccess}
+        hasPendingRequest={!!pendingRequest}
+        requestStatus={pendingRequest?.status}
       />
 
       <BigModal
@@ -236,6 +275,9 @@ export default function Reader() {
           {chapters.map((ch) => {
             const purchased = book.purchasedChapters.includes(ch.id);
             const isCurrent = ch.id === currentChapterId;
+            const hasPending = familyApprovalRequests.some(
+              (r) => r.bookId === bookId && r.chapterId === ch.id && r.status === 'pending'
+            );
             
             return (
               <button
@@ -251,15 +293,23 @@ export default function Reader() {
               >
                 <div className="flex items-center justify-between">
                   <span>{ch.title}</span>
-                  {!ch.isFree && !purchased && (
-                    <span className="text-xl text-orange-500">{ch.price}书币</span>
-                  )}
-                  {purchased && (
-                    <span className="text-xl text-green-500">已购</span>
-                  )}
-                  {ch.isFree && (
-                    <span className="text-xl text-green-500">免费</span>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {hasPending && (
+                      <span className="text-lg text-amber-500 flex items-center gap-1">
+                        <Clock size={20} />
+                        待确认
+                      </span>
+                    )}
+                    {!ch.isFree && !purchased && !hasPending && (
+                      <span className="text-xl text-orange-500">{ch.price}书币</span>
+                    )}
+                    {purchased && (
+                      <span className="text-xl text-green-500">已购</span>
+                    )}
+                    {ch.isFree && (
+                      <span className="text-xl text-green-500">免费</span>
+                    )}
+                  </div>
                 </div>
               </button>
             );

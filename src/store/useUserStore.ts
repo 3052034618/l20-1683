@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { UserData, PurchaseRecord, Book, UserSettings } from '@/types';
+import type { UserData, PurchaseRecord, Book, UserSettings, FamilyApprovalRequest } from '@/types';
 import { initialUserData, bookChapters } from '@/data/mockData';
 
 interface UserStore extends UserData {
@@ -13,6 +13,11 @@ interface UserStore extends UserData {
   getDailySpent: () => number;
   resetDailySpentIfNeeded: () => void;
   setLastReadBook: (bookId: string) => void;
+  requestFamilyApproval: (bookId: string, chapterId: number, price: number, bookTitle: string, chapterTitle: string) => string;
+  approveFamilyRequest: (requestId: string) => boolean;
+  rejectFamilyRequest: (requestId: string) => void;
+  getPendingFamilyRequests: () => FamilyApprovalRequest[];
+  getRequestById: (requestId: string) => FamilyApprovalRequest | undefined;
 }
 
 export const useUserStore = create<UserStore>()(
@@ -92,7 +97,7 @@ export const useUserStore = create<UserStore>()(
       },
 
       resetDailySpentIfNeeded: () => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toLocaleDateString('zh-CN');
         const state = get();
         if (state.lastSpentDate !== today) {
           set({
@@ -103,6 +108,83 @@ export const useUserStore = create<UserStore>()(
       },
 
       setLastReadBook: (bookId) => set({ lastReadBookId: bookId }),
+
+      requestFamilyApproval: (bookId, chapterId, price, bookTitle, chapterTitle) => {
+        const request: FamilyApprovalRequest = {
+          id: `req-${Date.now()}`,
+          bookId,
+          chapterId,
+          price,
+          bookTitle,
+          chapterTitle,
+          status: 'pending',
+          requestTime: Date.now(),
+        };
+
+        set((state) => ({
+          familyApprovalRequests: [request, ...state.familyApprovalRequests],
+        }));
+
+        return request.id;
+      },
+
+      approveFamilyRequest: (requestId) => {
+        const state = get();
+        const request = state.familyApprovalRequests.find((r) => r.id === requestId);
+        
+        if (!request || request.status !== 'pending') {
+          return false;
+        }
+
+        state.resetDailySpentIfNeeded();
+        const currentState = get();
+
+        if (currentState.balance < request.price) {
+          return false;
+        }
+
+        if (currentState.dailySpent + request.price > currentState.settings.dailyLimit) {
+          return false;
+        }
+
+        const success = currentState.purchaseChapter(
+          request.bookId,
+          request.chapterId,
+          request.price,
+          request.bookTitle,
+          request.chapterTitle
+        );
+
+        if (success) {
+          set((s) => ({
+            familyApprovalRequests: s.familyApprovalRequests.map((r) =>
+              r.id === requestId
+                ? { ...r, status: 'approved' as const, handledTime: Date.now() }
+                : r
+            ),
+          }));
+        }
+
+        return success;
+      },
+
+      rejectFamilyRequest: (requestId) => {
+        set((state) => ({
+          familyApprovalRequests: state.familyApprovalRequests.map((r) =>
+            r.id === requestId
+              ? { ...r, status: 'rejected' as const, handledTime: Date.now() }
+              : r
+          ),
+        }));
+      },
+
+      getPendingFamilyRequests: () => {
+        return get().familyApprovalRequests.filter((r) => r.status === 'pending');
+      },
+
+      getRequestById: (requestId) => {
+        return get().familyApprovalRequests.find((r) => r.id === requestId);
+      },
     }),
     {
       name: 'yinyue-reader-storage',

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Shield,
@@ -11,6 +11,11 @@ import {
   Minus,
   Plus,
   Power,
+  CheckCircle,
+  XCircle,
+  Clock as ClockIcon,
+  Bell,
+  BarChart3,
 } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import PageHeader from '@/components/PageHeader';
@@ -31,17 +36,25 @@ export default function Family() {
     addBalance,
     setFamilyPassword,
     resetDailySpentIfNeeded,
+    familyApprovalRequests,
+    approveFamilyRequest,
+    rejectFamilyRequest,
   } = useUserStore();
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [rechargeAmount, setRechargeAmount] = useState(50);
+  const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
 
-  resetDailySpentIfNeeded();
+  useEffect(() => {
+    resetDailySpentIfNeeded();
+  }, [resetDailySpentIfNeeded]);
 
   const dailyRemaining = Math.max(0, settings.dailyLimit - dailySpent);
+  const dailyUsagePercent = (dailySpent / settings.dailyLimit) * 100;
 
+  const pendingRequests = familyApprovalRequests.filter((r) => r.status === 'pending');
   const recentRecords = records.slice(0, 10);
 
   const handleDailyLimitChange = (delta: number) => {
@@ -67,7 +80,37 @@ export default function Family() {
     }
   };
 
+  const handleApprove = (requestId: string) => {
+    const success = approveFamilyRequest(requestId);
+    if (success) {
+      setSelectedRequest(null);
+    }
+  };
+
+  const handleReject = (requestId: string) => {
+    rejectFamilyRequest(requestId);
+    setSelectedRequest(null);
+  };
+
   const dailyLimitOptions = [5, 10, 20, 30, 50, 100];
+
+  const bookStats = records.reduce((acc, record) => {
+    if (record.price === 0) return acc;
+    if (!acc[record.bookId]) {
+      acc[record.bookId] = {
+        bookTitle: record.bookTitle,
+        totalSpent: 0,
+        chapterCount: 0,
+      };
+    }
+    acc[record.bookId].totalSpent += record.price;
+    acc[record.bookId].chapterCount += 1;
+    return acc;
+  }, {} as Record<string, { bookTitle: string; totalSpent: number; chapterCount: number }>);
+
+  const bookStatsList = Object.values(bookStats).sort((a, b) => b.totalSpent - a.totalSpent);
+
+  const selectedRequestData = familyApprovalRequests.find((r) => r.id === selectedRequest);
 
   return (
     <div className="min-h-screen bg-amber-50 flex flex-col">
@@ -78,8 +121,65 @@ export default function Family() {
         </div>
       </PageHeader>
 
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-5xl mx-auto space-y-8">
+          {pendingRequests.length > 0 && (
+            <Card className="p-8 border-orange-300 bg-orange-50">
+              <h2 className="text-3xl font-bold text-orange-700 mb-6 flex items-center gap-3">
+                <Bell size={36} />
+                待确认申请
+                <span className="ml-2 px-4 py-1 bg-orange-500 text-white text-xl rounded-full">
+                  {pendingRequests.length}
+                </span>
+              </h2>
+
+              <div className="space-y-4">
+                {pendingRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="p-6 bg-white rounded-2xl border-2 border-orange-200 flex items-center justify-between"
+                  >
+                    <div className="flex-1">
+                      <p className="text-2xl font-bold text-amber-900 mb-2">
+                        {request.bookTitle}
+                      </p>
+                      <p className="text-xl text-amber-700 mb-3">
+                        {request.chapterTitle}
+                      </p>
+                      <div className="flex items-center gap-6 text-lg text-amber-600">
+                        <span className="flex items-center gap-2">
+                          <ClockIcon size={20} />
+                          {new Date(request.requestTime).toLocaleString('zh-CN')}
+                        </span>
+                        <span className="text-2xl font-bold text-orange-500">
+                          {request.price} 书币
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 ml-6">
+                      <BigButton
+                        variant="success"
+                        size="normal"
+                        onClick={() => handleApprove(request.id)}
+                        icon={<CheckCircle size={24} />}
+                      >
+                        同意
+                      </BigButton>
+                      <BigButton
+                        variant="danger"
+                        size="normal"
+                        onClick={() => handleReject(request.id)}
+                        icon={<XCircle size={24} />}
+                      >
+                        拒绝
+                      </BigButton>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="p-6">
               <div className="flex items-center gap-4 mb-4">
@@ -111,9 +211,13 @@ export default function Family() {
                   <p className="text-4xl font-bold text-green-600">{dailySpent}</p>
                 </div>
               </div>
-              <ProgressBar value={dailySpent} max={settings.dailyLimit} color="green" />
+              <ProgressBar
+                value={dailySpent}
+                max={settings.dailyLimit}
+                color={dailyUsagePercent > 80 ? 'red' : 'green'}
+              />
               <p className="text-lg text-amber-600 mt-3">
-                剩余额度：{dailyRemaining} 书币
+                剩余额度：<span className="font-bold text-green-600">{dailyRemaining}</span> 书币
               </p>
             </Card>
 
@@ -146,12 +250,12 @@ export default function Family() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-2xl font-bold text-amber-900">每日消费上限</p>
-                    <p className="text-lg text-amber-700">每天最多可以花多少书币</p>
+                    <p className="text-lg text-amber-700">每天最多可以花多少书币，第二天自动重置</p>
                   </div>
                   <div className="flex items-center gap-4">
                     <button
                       onClick={() => handleDailyLimitChange(-5)}
-                      className="w-14 h-14 rounded-xl bg-white border-2 border-amber-200 text-amber-700 hover:bg-amber-100 flex items-center justify-center"
+                      className="w-14 h-14 rounded-xl bg-white border-2 border-amber-200 text-amber-700 hover:bg-amber-100 flex items-center justify-center transition-colors"
                     >
                       <Minus size={28} strokeWidth={2.5} />
                     </button>
@@ -160,7 +264,7 @@ export default function Family() {
                     </span>
                     <button
                       onClick={() => handleDailyLimitChange(5)}
-                      className="w-14 h-14 rounded-xl bg-white border-2 border-amber-200 text-amber-700 hover:bg-amber-100 flex items-center justify-center"
+                      className="w-14 h-14 rounded-xl bg-white border-2 border-amber-200 text-amber-700 hover:bg-amber-100 flex items-center justify-center transition-colors"
                     >
                       <Plus size={28} strokeWidth={2.5} />
                     </button>
@@ -181,6 +285,13 @@ export default function Family() {
                     </button>
                   ))}
                 </div>
+                {dailySpent > settings.dailyLimit && (
+                  <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                    <p className="text-lg text-red-600 font-bold">
+                      ⚠️ 当前已消费已超过新上限，今日无法再购买新章节
+                    </p>
+                  </div>
+                )}
               </div>
 
               <BigSwitch
@@ -194,12 +305,12 @@ export default function Family() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-2xl font-bold text-amber-900">高价章节需家属确认</p>
-                    <p className="text-lg text-amber-700">超过此价格的章节需要家属同意</p>
+                    <p className="text-lg text-amber-700">超过此价格的章节需要家属同意才能购买</p>
                   </div>
                   <div className="flex items-center gap-4">
                     <button
                       onClick={() => handleAskFamilyChange(-5)}
-                      className="w-14 h-14 rounded-xl bg-white border-2 border-amber-200 text-amber-700 hover:bg-amber-100 flex items-center justify-center"
+                      className="w-14 h-14 rounded-xl bg-white border-2 border-amber-200 text-amber-700 hover:bg-amber-100 flex items-center justify-center transition-colors"
                     >
                       <Minus size={28} strokeWidth={2.5} />
                     </button>
@@ -208,7 +319,7 @@ export default function Family() {
                     </span>
                     <button
                       onClick={() => handleAskFamilyChange(5)}
-                      className="w-14 h-14 rounded-xl bg-white border-2 border-amber-200 text-amber-700 hover:bg-amber-100 flex items-center justify-center"
+                      className="w-14 h-14 rounded-xl bg-white border-2 border-amber-200 text-amber-700 hover:bg-amber-100 flex items-center justify-center transition-colors"
                     >
                       <Plus size={28} strokeWidth={2.5} />
                     </button>
@@ -220,6 +331,45 @@ export default function Family() {
               </div>
             </div>
           </Card>
+
+          {bookStatsList.length > 0 && (
+            <Card className="p-8">
+              <h2 className="text-3xl font-bold text-amber-900 mb-6 flex items-center gap-3">
+                <BarChart3 size={32} />
+                按书名统计
+              </h2>
+
+              <div className="space-y-4">
+                {bookStatsList.map((stat, index) => (
+                  <div
+                    key={stat.bookTitle}
+                    className="p-5 bg-amber-50 rounded-xl"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-4">
+                        <span className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xl font-bold">
+                          {index + 1}
+                        </span>
+                        <div>
+                          <p className="text-2xl font-bold text-amber-900">{stat.bookTitle}</p>
+                          <p className="text-lg text-amber-700">已购 {stat.chapterCount} 章</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-3xl font-bold text-orange-500">
+                          {stat.totalSpent} 书币
+                        </p>
+                      </div>
+                    </div>
+                    <ProgressBar
+                      value={stat.totalSpent}
+                      max={records.reduce((s, r) => s + r.price, 0)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           <Card className="p-8">
             <h2 className="text-3xl font-bold text-amber-900 mb-6 flex items-center gap-3">

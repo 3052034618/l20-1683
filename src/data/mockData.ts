@@ -138,4 +138,5 @@ export const initialUserData: UserData = {
   dailySpent: 0,
   lastSpentDate: today,
   lastReadBookId: 'book-1',
+  familyApprovalRequests: [],
 };

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Lock, Check, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Lock, Check, AlertTriangle, Clock, Send, XCircle, CheckCircle } from 'lucide-react';
 import BigModal from '@/components/BigModal';
 import BigButton from '@/components/BigButton';
 import BigSwitch from '@/components/BigSwitch';
@@ -15,6 +15,8 @@ interface UnlockModalProps {
   chapterTitle: string;
   price: number;
   onSuccess: () => void;
+  hasPendingRequest?: boolean;
+  requestStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 export default function UnlockModal({
@@ -26,13 +28,38 @@ export default function UnlockModal({
   chapterTitle,
   price,
   onSuccess,
+  hasPendingRequest = false,
+  requestStatus,
 }: UnlockModalProps) {
   const navigate = useNavigate();
-  const { balance, settings, dailySpent, purchaseChapter, updateSettings } = useUserStore();
-  const [step, setStep] = useState<'confirm' | 'success' | 'failed'>('confirm');
+  const { balance, settings, dailySpent, purchaseChapter, updateSettings, requestFamilyApproval, familyApprovalRequests } = useUserStore();
+  
+  const [step, setStep] = useState<'confirm' | 'success' | 'failed' | 'requested' | 'requesting'>('confirm');
   const [errorMsg, setErrorMsg] = useState('');
   const [rememberChoice, setRememberChoice] = useState(false);
   const [askFamilyAbove, setAskFamilyAbove] = useState(false);
+
+  const pendingRequest = familyApprovalRequests.find(
+    (r) => r.bookId === bookId && r.chapterId === chapterId && r.status === 'pending'
+  );
+
+  const rejectedRequest = familyApprovalRequests.find(
+    (r) => r.bookId === bookId && r.chapterId === chapterId && r.status === 'rejected'
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      if (pendingRequest) {
+        setStep('requested');
+      } else if (rejectedRequest) {
+        setStep('failed');
+        setErrorMsg('家属已拒绝此次申请');
+      } else {
+        setStep('confirm');
+        setErrorMsg('');
+      }
+    }
+  }, [isOpen, pendingRequest, rejectedRequest]);
 
   const canAfford = balance >= price;
   const withinDailyLimit = dailySpent + price <= settings.dailyLimit;
@@ -52,8 +79,8 @@ export default function UnlockModal({
     }
 
     if (needFamilyConfirm) {
-      setErrorMsg('此章节价格较高，需要家属确认');
       setStep('failed');
+      setErrorMsg('此章节价格较高，需要家属确认');
       return;
     }
 
@@ -75,6 +102,27 @@ export default function UnlockModal({
       setErrorMsg('解锁失败，请稍后重试');
       setStep('failed');
     }
+  };
+
+  const handleRequestFamily = () => {
+    if (!canAfford) {
+      setErrorMsg('书币不足，请先充值');
+      setStep('failed');
+      return;
+    }
+
+    if (!withinDailyLimit) {
+      setErrorMsg('已超过今日消费上限，无法申请');
+      setStep('failed');
+      return;
+    }
+
+    setStep('requesting');
+    requestFamilyApproval(bookId, chapterId, price, bookTitle, chapterTitle);
+    
+    setTimeout(() => {
+      setStep('requested');
+    }, 800);
   };
 
   const handleClose = () => {
@@ -123,17 +171,13 @@ export default function UnlockModal({
 
           {needFamilyConfirm && canAfford && withinDailyLimit && (
             <div className="bg-amber-100 border-2 border-amber-300 rounded-2xl p-6 mb-8">
-              <div className="flex items-center justify-center gap-3 text-amber-700">
+              <div className="flex items-center justify-center gap-3 text-amber-700 mb-4">
                 <AlertTriangle size={32} />
                 <span className="text-2xl font-bold">需要家属确认</span>
               </div>
-              <p className="text-xl text-amber-600 mt-2">超过 {settings.askFamilyAbove} 书币的消费需家属确认</p>
-              <button
-                onClick={() => navigate('/family/verify')}
-                className="mt-4 text-xl text-orange-500 font-bold underline"
-              >
-                联系家属
-              </button>
+              <p className="text-xl text-amber-600">
+                超过 {settings.askFamilyAbove} 书币的消费需家属确认
+              </p>
             </div>
           )}
 
@@ -152,23 +196,98 @@ export default function UnlockModal({
             />
           </div>
 
-          <div className="flex gap-4">
+          {needFamilyConfirm ? (
+            <div className="space-y-4">
+              <BigButton
+                variant="primary"
+                size="large"
+                fullWidth
+                onClick={handleRequestFamily}
+                icon={<Send size={28} />}
+              >
+                向家属申请解锁
+              </BigButton>
+              <BigButton
+                variant="secondary"
+                size="large"
+                fullWidth
+                onClick={handleClose}
+              >
+                再想想
+              </BigButton>
+            </div>
+          ) : (
+            <div className="flex gap-4">
+              <BigButton
+                variant="secondary"
+                size="large"
+                className="flex-1"
+                onClick={handleClose}
+              >
+                再想想
+              </BigButton>
+              <BigButton
+                variant="primary"
+                size="large"
+                className="flex-1"
+                onClick={handleUnlock}
+                disabled={!canAfford || !withinDailyLimit}
+              >
+                解锁本章
+              </BigButton>
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === 'requesting' && (
+        <div className="text-center py-8">
+          <div className="w-28 h-28 mx-auto mb-8 rounded-full bg-blue-100 flex items-center justify-center animate-pulse">
+            <Send size={56} className="text-blue-500" />
+          </div>
+          <h3 className="text-3xl font-bold text-amber-900 mb-4">正在发送申请...</h3>
+          <p className="text-xl text-amber-700">请稍候</p>
+        </div>
+      )}
+
+      {step === 'requested' && pendingRequest && (
+        <div className="text-center">
+          <div className="w-28 h-28 mx-auto mb-8 rounded-full bg-amber-100 flex items-center justify-center">
+            <Clock size={56} className="text-amber-500" strokeWidth={2} />
+          </div>
+
+          <h3 className="text-3xl font-bold text-amber-900 mb-3">已申请家属确认</h3>
+          <p className="text-xl text-amber-700 mb-8">{chapterTitle}</p>
+
+          <div className="bg-amber-50 rounded-2xl p-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xl text-amber-700">价格</span>
+              <span className="text-2xl font-bold text-orange-500">{price} 书币</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xl text-amber-700">申请时间</span>
+              <span className="text-lg text-amber-900">
+                {new Date(pendingRequest.requestTime).toLocaleString('zh-CN')}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 mb-10">
+            <p className="text-xl text-blue-700">
+              已向家属发送解锁申请，请耐心等待家属确认。
+              <br />
+              家属同意后即可自动解锁本章。
+            </p>
+          </div>
+
+          <div className="space-y-4">
             <BigButton
               variant="secondary"
               size="large"
-              className="flex-1"
+              fullWidth
               onClick={handleClose}
             >
-              再想想
-            </BigButton>
-            <BigButton
-              variant="primary"
-              size="large"
-              className="flex-1"
-              onClick={handleUnlock}
-              disabled={!canAfford || !withinDailyLimit || needFamilyConfirm}
-            >
-              解锁本章
+              知道了
             </BigButton>
           </div>
         </div>
@@ -187,18 +306,43 @@ export default function UnlockModal({
       {step === 'failed' && (
         <div className="text-center">
           <div className="w-28 h-28 mx-auto mb-8 rounded-full bg-red-100 flex items-center justify-center">
-            <AlertTriangle size={56} className="text-red-500" strokeWidth={2} />
+            {rejectedRequest ? (
+              <XCircle size={56} className="text-red-500" strokeWidth={2} />
+            ) : (
+              <AlertTriangle size={56} className="text-red-500" strokeWidth={2} />
+            )}
           </div>
-          <h3 className="text-3xl font-bold text-red-600 mb-4">解锁失败</h3>
+          <h3 className="text-3xl font-bold text-red-600 mb-4">
+            {rejectedRequest ? '家属已拒绝' : '解锁失败'}
+          </h3>
           <p className="text-2xl text-amber-700 mb-10">{errorMsg}</p>
-          <BigButton
-            variant="primary"
-            size="large"
-            fullWidth
-            onClick={handleClose}
-          >
-            知道了
-          </BigButton>
+          
+          {rejectedRequest && rejectedRequest.handledTime && (
+            <div className="bg-amber-50 rounded-2xl p-6 mb-10">
+              <p className="text-lg text-amber-700">
+                拒绝时间：{new Date(rejectedRequest.handledTime).toLocaleString('zh-CN')}
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <BigButton
+              variant="secondary"
+              size="large"
+              fullWidth
+              onClick={() => navigate('/family/verify')}
+            >
+              联系家属
+            </BigButton>
+            <BigButton
+              variant="primary"
+              size="large"
+              fullWidth
+              onClick={handleClose}
+            >
+              知道了
+            </BigButton>
+          </div>
         </div>
       )}
     </BigModal>

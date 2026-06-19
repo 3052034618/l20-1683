@@ -27,6 +27,18 @@ export interface PurchaseRecord {
   timestamp: number;
 }
 
+export interface FamilyApprovalRequest {
+  id: string;
+  bookId: string;
+  bookTitle: string;
+  chapterId: number;
+  chapterTitle: string;
+  price: number;
+  status: 'pending' | 'approved' | 'rejected';
+  requestTime: number;
+  handledTime?: number;
+}
+
 export interface UserSettings {
   fontSize: 'large' | 'xlarge' | 'xxlarge';
   dailyLimit: number;
@@ -44,4 +56,5 @@ export interface UserData {
   dailySpent: number;
   lastSpentDate: string;
   lastReadBookId: string | null;
+  familyApprovalRequests: FamilyApprovalRequest[];
 }
