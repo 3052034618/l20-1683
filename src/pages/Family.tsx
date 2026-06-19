@@ -16,6 +16,9 @@ import {
   Clock as ClockIcon,
   Bell,
   BarChart3,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import PageHeader from '@/components/PageHeader';
@@ -24,6 +27,8 @@ import BigSwitch from '@/components/BigSwitch';
 import BigButton from '@/components/BigButton';
 import ProgressBar from '@/components/ProgressBar';
 import BigModal from '@/components/BigModal';
+
+type HistoryTab = 'pending' | 'approved' | 'rejected';
 
 export default function Family() {
   const navigate = useNavigate();
@@ -46,6 +51,9 @@ export default function Family() {
   const [newPassword, setNewPassword] = useState('');
   const [rechargeAmount, setRechargeAmount] = useState(50);
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
+  const [historyTab, setHistoryTab] = useState<HistoryTab>('pending');
+  const [showHistoryDetail, setShowHistoryDetail] = useState(false);
+  const [detailRequestId, setDetailRequestId] = useState<string | null>(null);
 
   useEffect(() => {
     resetDailySpentIfNeeded();
@@ -55,7 +63,27 @@ export default function Family() {
   const dailyUsagePercent = (dailySpent / settings.dailyLimit) * 100;
 
   const pendingRequests = familyApprovalRequests.filter((r) => r.status === 'pending');
+  const approvedRequests = familyApprovalRequests.filter((r) => r.status === 'approved');
+  const rejectedRequests = familyApprovalRequests.filter((r) => r.status === 'rejected');
   const recentRecords = records.slice(0, 10);
+
+  const getDisplayRequests = () => {
+    switch (historyTab) {
+      case 'pending':
+        return pendingRequests;
+      case 'approved':
+        return approvedRequests;
+      case 'rejected':
+        return rejectedRequests;
+      default:
+        return [];
+    }
+  };
+
+  const displayRequests = getDisplayRequests();
+  const detailRequest = detailRequestId
+    ? familyApprovalRequests.find((r) => r.id === detailRequestId)
+    : null;
 
   const handleDailyLimitChange = (delta: number) => {
     const newLimit = Math.max(5, Math.min(100, settings.dailyLimit + delta));
@@ -123,62 +151,151 @@ export default function Family() {
 
       <main className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-5xl mx-auto space-y-8">
-          {pendingRequests.length > 0 && (
-            <Card className="p-8 border-orange-300 bg-orange-50">
-              <h2 className="text-3xl font-bold text-orange-700 mb-6 flex items-center gap-3">
-                <Bell size={36} />
-                待确认申请
-                <span className="ml-2 px-4 py-1 bg-orange-500 text-white text-xl rounded-full">
-                  {pendingRequests.length}
-                </span>
-              </h2>
+          <Card className="p-8">
+            <h2 className="text-3xl font-bold text-amber-900 mb-6 flex items-center gap-3">
+              <History size={36} />
+              审批历史
+            </h2>
 
-              <div className="space-y-4">
-                {pendingRequests.map((request) => (
-                  <div
+            <div className="flex gap-3 mb-6">
+              <button
+                onClick={() => setHistoryTab('pending')}
+                className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors flex items-center gap-2 ${
+                  historyTab === 'pending'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                }`}
+              >
+                <ClockIcon size={24} />
+                待确认
+                {pendingRequests.length > 0 && (
+                  <span className="ml-1 px-3 py-0.5 bg-white/20 rounded-full text-lg">
+                    {pendingRequests.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setHistoryTab('approved')}
+                className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors flex items-center gap-2 ${
+                  historyTab === 'approved'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                }`}
+              >
+                <CheckCircle size={24} />
+                已同意
+                {approvedRequests.length > 0 && (
+                  <span className="ml-1 px-3 py-0.5 bg-white/20 rounded-full text-lg">
+                    {approvedRequests.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setHistoryTab('rejected')}
+                className={`px-6 py-3 rounded-xl text-xl font-bold transition-colors flex items-center gap-2 ${
+                  historyTab === 'rejected'
+                    ? 'bg-red-500 text-white'
+                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                }`}
+              >
+                <XCircle size={24} />
+                已拒绝
+                {rejectedRequests.length > 0 && (
+                  <span className="ml-1 px-3 py-0.5 bg-white/20 rounded-full text-lg">
+                    {rejectedRequests.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {displayRequests.length === 0 ? (
+              <div className="text-center py-12">
+                <ClockIcon size={64} className="mx-auto text-amber-300 mb-4" />
+                <p className="text-2xl text-amber-600">
+                  {historyTab === 'pending'
+                    ? '暂无待确认申请'
+                    : historyTab === 'approved'
+                    ? '暂无已同意记录'
+                    : '暂无已拒绝记录'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {displayRequests.map((request) => (
+                  <button
                     key={request.id}
-                    className="p-6 bg-white rounded-2xl border-2 border-orange-200 flex items-center justify-between"
+                    onClick={() => {
+                      setDetailRequestId(request.id);
+                      setShowHistoryDetail(true);
+                    }}
+                    className="w-full p-5 bg-amber-50 rounded-2xl text-left hover:bg-amber-100 transition-colors border-2 border-transparent hover:border-amber-200"
                   >
-                    <div className="flex-1">
-                      <p className="text-2xl font-bold text-amber-900 mb-2">
-                        {request.bookTitle}
-                      </p>
-                      <p className="text-xl text-amber-700 mb-3">
-                        {request.chapterTitle}
-                      </p>
-                      <div className="flex items-center gap-6 text-lg text-amber-600">
-                        <span className="flex items-center gap-2">
-                          <ClockIcon size={20} />
-                          {new Date(request.requestTime).toLocaleString('zh-CN')}
-                        </span>
-                        <span className="text-2xl font-bold text-orange-500">
-                          {request.price} 书币
-                        </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-2xl font-bold text-amber-900 mb-2">
+                          {request.bookTitle}
+                        </p>
+                        <p className="text-xl text-amber-700 mb-3">
+                          {request.chapterTitle}
+                        </p>
+                        <div className="flex items-center gap-6 text-lg text-amber-600">
+                          <span className="flex items-center gap-2">
+                            <ClockIcon size={20} />
+                            {new Date(
+                              historyTab === 'pending'
+                                ? request.requestTime
+                                : request.handledTime || request.requestTime
+                            ).toLocaleString('zh-CN')}
+                          </span>
+                          <span className="text-2xl font-bold text-orange-500">
+                            {request.price} 书币
+                          </span>
+                        </div>
+                      </div>
+                      <div className="ml-6">
+                        {historyTab === 'pending' ? (
+                          <div className="flex gap-3">
+                            <BigButton
+                              variant="success"
+                              size="normal"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApprove(request.id);
+                              }}
+                              icon={<CheckCircle size={24} />}
+                            >
+                              同意
+                            </BigButton>
+                            <BigButton
+                              variant="danger"
+                              size="normal"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReject(request.id);
+                              }}
+                              icon={<XCircle size={24} />}
+                            >
+                              拒绝
+                            </BigButton>
+                          </div>
+                        ) : historyTab === 'approved' ? (
+                          <span className="px-4 py-2 bg-green-100 text-green-600 rounded-xl text-xl font-bold flex items-center gap-2">
+                            <CheckCircle size={24} />
+                            已同意
+                          </span>
+                        ) : (
+                          <span className="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-xl font-bold flex items-center gap-2">
+                            <XCircle size={24} />
+                            已拒绝
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="flex gap-3 ml-6">
-                      <BigButton
-                        variant="success"
-                        size="normal"
-                        onClick={() => handleApprove(request.id)}
-                        icon={<CheckCircle size={24} />}
-                      >
-                        同意
-                      </BigButton>
-                      <BigButton
-                        variant="danger"
-                        size="normal"
-                        onClick={() => handleReject(request.id)}
-                        icon={<XCircle size={24} />}
-                      >
-                        拒绝
-                      </BigButton>
-                    </div>
-                  </div>
+                  </button>
                 ))}
               </div>
-            </Card>
-          )}
+            )}
+          </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="p-6">
@@ -573,6 +690,123 @@ export default function Family() {
             </BigButton>
           </div>
         </div>
+      </BigModal>
+
+      <BigModal
+        isOpen={showHistoryDetail}
+        onClose={() => setShowHistoryDetail(false)}
+        title="审批详情"
+      >
+        {detailRequest && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <div
+                className={`w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center ${
+                  detailRequest.status === 'pending'
+                    ? 'bg-amber-100'
+                    : detailRequest.status === 'approved'
+                    ? 'bg-green-100'
+                    : 'bg-red-100'
+                }`}
+              >
+                {detailRequest.status === 'pending' ? (
+                  <ClockIcon size={48} className="text-amber-500" />
+                ) : detailRequest.status === 'approved' ? (
+                  <CheckCircle size={48} className="text-green-500" />
+                ) : (
+                  <XCircle size={48} className="text-red-500" />
+                )}
+              </div>
+              <p className="text-3xl font-bold text-amber-900 mb-2">
+                {detailRequest.bookTitle}
+              </p>
+              <p className="text-2xl text-amber-700">{detailRequest.chapterTitle}</p>
+            </div>
+
+            <div className="bg-amber-50 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xl text-amber-700">价格</span>
+                <span className="text-2xl font-bold text-orange-500">
+                  {detailRequest.price} 书币
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xl text-amber-700">申请时间</span>
+                <span className="text-lg text-amber-900">
+                  {new Date(detailRequest.requestTime).toLocaleString('zh-CN')}
+                </span>
+              </div>
+              {detailRequest.handledTime && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xl text-amber-700">
+                    {detailRequest.status === 'approved' ? '同意时间' : '拒绝时间'}
+                  </span>
+                  <span className="text-lg text-amber-900">
+                    {new Date(detailRequest.handledTime).toLocaleString('zh-CN')}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-xl text-amber-700">状态</span>
+                <span
+                  className={`px-4 py-2 rounded-xl text-xl font-bold ${
+                    detailRequest.status === 'pending'
+                      ? 'bg-amber-100 text-amber-700'
+                      : detailRequest.status === 'approved'
+                      ? 'bg-green-100 text-green-600'
+                      : 'bg-red-100 text-red-600'
+                  }`}
+                >
+                  {detailRequest.status === 'pending'
+                    ? '待确认'
+                    : detailRequest.status === 'approved'
+                    ? '已同意'
+                    : '已拒绝'}
+                </span>
+              </div>
+            </div>
+
+            {detailRequest.status === 'pending' && (
+              <div className="flex gap-4 pt-4">
+                <BigButton
+                  variant="success"
+                  size="large"
+                  className="flex-1"
+                  onClick={() => {
+                    handleApprove(detailRequest.id);
+                    setShowHistoryDetail(false);
+                  }}
+                  icon={<CheckCircle size={24} />}
+                >
+                  同意
+                </BigButton>
+                <BigButton
+                  variant="danger"
+                  size="large"
+                  className="flex-1"
+                  onClick={() => {
+                    handleReject(detailRequest.id);
+                    setShowHistoryDetail(false);
+                  }}
+                  icon={<XCircle size={24} />}
+                >
+                  拒绝
+                </BigButton>
+              </div>
+            )}
+
+            {detailRequest.status !== 'pending' && (
+              <BigButton
+                variant="secondary"
+                size="large"
+                fullWidth
+                onClick={() => setShowHistoryDetail(false)}
+              >
+                关闭
+              </BigButton>
+            )}
+          </div>
+        )}
       </BigModal>
     </div>
   );

@@ -63,7 +63,7 @@ export default function UnlockModal({
 
   const canAfford = balance >= price;
   const withinDailyLimit = dailySpent + price <= settings.dailyLimit;
-  const needFamilyConfirm = price > settings.askFamilyAbove && settings.askFamilyAbove > 0;
+  const needFamilyConfirm = settings.askFamilyAbove === 0 || price > settings.askFamilyAbove;
 
   const handleUnlock = () => {
     if (!canAfford) {

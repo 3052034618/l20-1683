@@ -48,6 +48,10 @@ export default function Reader() {
     }
   }, [bookId, currentChapterId, canRead, updateBookProgress, setLastReadBook]);
 
+  useEffect(() => {
+    useUserStore.getState().resetDailySpentIfNeeded();
+  }, []);
+
   const goToChapter = (chId: number) => {
     if (chId < 1 || chId > chapters.length) return;
     
@@ -59,7 +63,10 @@ export default function Reader() {
       setShowChapters(false);
     } else {
       setPendingChapter(chId);
-      setShowUnlockModal(true);
+      setShowChapters(false);
+      setTimeout(() => {
+        setShowUnlockModal(true);
+      }, 300);
     }
   };
 
@@ -203,14 +210,28 @@ export default function Reader() {
                     {new Date(pendingRequest.requestTime).toLocaleString('zh-CN')}
                   </p>
                 </div>
-                <BigButton
-                  variant="secondary"
-                  size="large"
-                  onClick={() => setShowUnlockModal(true)}
-                  className="max-w-md mx-auto"
-                >
-                  查看申请详情
-                </BigButton>
+                <div className="space-y-4 max-w-md mx-auto">
+                  <BigButton
+                    variant="primary"
+                    size="large"
+                    fullWidth
+                    onClick={() => {
+                      useUserStore.getState().resetDailySpentIfNeeded();
+                      setShowUnlockModal(true);
+                    }}
+                    icon={<CheckCircle size={28} />}
+                  >
+                    检查审批结果
+                  </BigButton>
+                  <BigButton
+                    variant="secondary"
+                    size="large"
+                    fullWidth
+                    onClick={() => setShowUnlockModal(true)}
+                  >
+                    查看申请详情
+                  </BigButton>
+                </div>
               </div>
             ) : (
               <div className="text-center py-20">
